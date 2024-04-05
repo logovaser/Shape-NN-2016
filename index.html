@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Perceptron</title>
+    <style>
+        body {
+            background: #e8e8e8;
+            font-size: 14px;
+        }
+
+        #lastValue {
+            color: #f44;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="myCanvas" width="200" height="200" style="background:#fff"></canvas>
+    <br>
+    <input type="button" id="clear" value="Clear">
+    <input type="button" id="display" value="display">
+    <br>
+    <br>
+    <input type="button" id="runNN" value="run with drawing">
+    <input type="button" id="runTr" value="run with triangle">
+    <input type="button" id="runRec" value="run with rectangle">
+    <input type="button" id="runLine" value="run with line">
+    <br><br>
+    <div>Result: </div>
+    <span id="lastValue"></span>
+
+
+<script>
+    'use strict';
+
+    function sigmoid(x) {
+    return 1 / (1 + Math.exp(-x))
+}
+
+function randomWeight() {
+    return (Math.random() - 0.5) * 2
+}
+
+class LogovDendrit {
+    constructor(from, to) {
+        this.weight = randomWeight();
+        this.from = from;
+        this.to = to;
+    }
+}
+
+class LogovNeuron {
+    constructor() {
+        this.dendrits = [];
+        this.aggregation = 0;
+        this.delta = 0;
+        this.out = 0;
+        this.connections = [];
+    }
+}
+
+class LogovLayer {
+    constructor(neuronCount) {
+        this.neurons = [];
+
+        for (let i = 0; i < neuronCount; i++) {
+            this.neurons.push(new LogovNeuron())
+        }
+    }
+
+    connectTo(layer) {
+        layer.neurons.forEach(neuron => {
+            this.neurons.forEach(thisNeuron => {
+                var dendrit = new LogovDendrit(neuron, thisNeuron);
+                neuron.connections.push(dendrit);
+                thisNeuron.dendrits.push(dendrit);
+            });
+        });
+    }
+}
+
+class LogovPerceptron {
+    constructor(iNeurons, hNeurons, oNeurons) {
+        this.iLayer = new LogovLayer(iNeurons);
+        this.hLayer = new LogovLayer(hNeurons);
+        this.oLayer = new LogovLayer(oNeurons);
+
+        this.hLayer.connectTo(this.iLayer);
+        this.oLayer.connectTo(this.hLayer);
+
+        this.activation = sigmoid;
+
+        this.learnRate = 0.1;
+    }
+
+    getSumForDelta(neuron) {
+        var sum = 0;
+        neuron.connections.forEach(connection => {
+            sum += connection.weight * connection.to.delta;
+        });
+        return sum;
+    }
+
+    train(pattern, test) {
+        this.exec(pattern);
+        var error = 0;
+
+        this.oLayer.neurons.forEach((neuron, i) => {
+            error += Math.abs(test[i] - neuron.out);
+            neuron.dendrits.forEach(dendrit => {
+                neuron.delta = neuron.out * (1 - neuron.out) * (test[i] - neuron.out);
+                dendrit.weight = dendrit.weight + this.learnRate * neuron.delta * dendrit.from.out;
+            });
+        });
+        this.hLayer.neurons.forEach(neuron => {
+            neuron.dendrits.forEach(dendrit => {
+                neuron.delta = neuron.out * (1 - neuron.out) * this.getSumForDelta(neuron);
+                dendrit.weight = dendrit.weight + this.learnRate * neuron.delta * dendrit.from.out;
+            });
+        });
+
+        return error;
+    }
+
+    exec(pattern) {
+        this.iLayer.neurons.forEach((neuron, i) => {
+            neuron.out = pattern[i];
+            // neuron.out = this.activation(pattern[i]);
+            neuron.connections.forEach(connection => {
+                connection.to.aggregation += connection.weight * neuron.out;
+            })
+        });
+        this.hLayer.neurons.forEach(neuron => {
+            neuron.out = this.activation(neuron.aggregation);
+            neuron.aggregation = 0;
+            neuron.connections.forEach(connection => {
+                connection.to.aggregation += connection.weight * neuron.out;
+            })
+        });
+        var outArr = [];
+        this.oLayer.neurons.forEach(neuron => {
+            neuron.out = this.activation(neuron.aggregation);
+            neuron.aggregation = 0;
+            outArr.push(neuron.out);
+        });
+
+        return outArr;
+    }
+}
+
+    var generateTriangle = function(width, height, type) {
+    var x1 = Math.random(),
+        y1 = Math.random(),
+        x2 = Math.random(),
+        y2 = Math.random(),
+        x3 = Math.random(),
+        y3 = y1,
+        arr = [];
+    while (!(y1 - y2 > 0.4 &&
+        x3 - x1 > 0.4)) {
+        x1 = Math.random();
+        x2 = Math.random();
+        x3 = Math.random();
+        y1 = Math.random();
+        y2 = Math.random();
+        y3 = y1;
+    }
+
+    x1 = x1 * width;
+    y1 = y1 * height;
+    x2 = x2 * width;
+    y2 = y2 * height;
+    x3 = x3 * width;
+    y3 = y3 * height;
+
+    for (let i = 0; i < height; i++) {
+        arr.push([]);
+        for (let j = 0; j < width; j++) {
+            arr[i].push(0);
+        }
+    }
+
+    for (let x = 0; x < width; x++) {
+        var line1Y = ((x2*y1-x1*y2)-(y1-y2)*x)/(x2-x1);
+        if (line1Y >= Math.min(y1,y2) && line1Y <= Math.max(y1,y2)) {
+            arr[Math.floor(line1Y)][x] = 1
+        }
+        var line3Y = ((x3*y2-x2*y3)-(y2-y3)*x)/(x3-x2);
+        if (line3Y >= Math.min(y2,y3) && line3Y <= Math.max(y2,y3)) {
+            arr[Math.floor(line3Y)][x] = 1
+        }
+    }
+    for (let y = 0; y < height; y++) {
+        var line1X = ((x2*y1-x1*y2)-(x2-x1)*y)/(y1-y2);
+        if (line1X >= Math.min(x1,x2) && line1X <= Math.max(x1,x2)) {
+            arr[y][Math.floor(line1X)] = 1
+        }
+        var line3X = ((x3*y2-x2*y3)-(x3-x2)*y)/(y2-y3);
+        if (line3X >= Math.min(x2,x3) && line3X <= Math.max(x2,x3)) {
+            arr[y][Math.floor(line3X)] = 1
+        }
+    }
+    for (let i=Math.floor(x1); i <= Math.floor(x3); i++) {
+        arr[Math.floor(y1)][i] = 1
+    }
+
+    if (type == 'debug') {
+        let str = '';
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                str += arr[i][j];
+            }
+            str += '\n';
+        }
+        console.log(str);
+    }
+
+    return arr;
+};
+
+var generateRect = function(width, height, type) {
+    var x1 = Math.random(),
+        y1 = Math.random(),
+        x2 = Math.random(),
+        y2 = Math.random(),
+        arr = [];
+    while (!(Math.abs(x1) - Math.abs(x2) > 0.4 &&
+    Math.abs(y1) - Math.abs(y2) > 0.4)) {
+        x1 = Math.random();
+        y1 = Math.random();
+        x2 = Math.random();
+        y2 = Math.random();
+    }
+
+    x1 = Math.min(Math.round(x1 * width), width - 1);
+    y1 = Math.min(Math.round(y1 * height), height - 1);
+    x2 = Math.min(Math.round(x2 * width), width - 1);
+    y2 = Math.min(Math.round(y2 * height), height - 1);
+
+    for (let i = 0; i < width; i++) {
+        arr.push([]);
+        for (let j = 0; j < height; j++) {
+            arr[i].push(0);
+        }
+    }
+    for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
+        arr[x][Math.min(y1, y2)] = 1;
+        arr[x][Math.max(y1, y2)] = 1;
+    }
+    for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) {
+        arr[Math.min(x1, x2)][y] = 1;
+        arr[Math.max(x1, x2)][y] = 1;
+    }
+
+    if (type == 'debug') {
+        let str = '';
+        for (let i = 0; i < height; i++) {
+            for (let j = 0; j < width; j++) {
+                str += arr[j][i];
+            }
+            str += '\n';
+        }
+        console.log(str);
+    }
+
+    return arr;
+};
+
+var generateLine = function(width, height, type) {
+  var x1 = Math.random(),
+    y1 = Math.random(),
+    x2 = Math.random(),
+    y2 = Math.random(),
+    arr = [];
+  while (!(Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2)) > 0.5)) {
+    x1 = Math.random();
+    y1 = Math.random();
+    x2 = Math.random();
+    y2 = Math.random();
+  }
+
+  x1 = x1 * width;
+  y1 = y1 * height;
+  x2 = x2 * width;
+  y2 = y2 * height;
+
+  for (let i = 0; i < width; i++) {
+    arr.push([]);
+    for (let j = 0; j < height; j++) {
+      arr[i].push(0);
+    }
+  }
+  for (let x = 0; x < width; x++) {
+    var line1Y = Math.round(((x - x1) * (y2 - y1)) / (x2 - x1) + y1);
+    if (line1Y >= Math.min(y1, y2) && line1Y < Math.max(y1, y2)) {
+      arr[x][line1Y] = 1
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    var line1X = Math.round(((y - y1) * (x2 - x1)) / (y2 - y1) + x1);
+    if (line1X >= Math.min(x1, x2) && line1X < Math.max(x1, x2)) {
+      arr[line1X][y] = 1
+    }
+  }
+
+  if (type == 'debug') {
+    let str = '';
+    for (let i = 0; i < height; i++) {
+      for (let j = 0; j < width; j++) {
+        str += arr[j][i];
+      }
+      str += '\n';
+    }
+    console.log(str);
+  }
+
+  return arr;
+};
+
+var array2dTo1d = function(arrToConvert) {
+  var newArr = [];
+  for (var i = 0; i < arrToConvert.length; i++) {
+    newArr = newArr.concat(arrToConvert[i]);
+  }
+  return newArr;
+};
+
+var perc = new LogovPerceptron(400, 100, 3);
+
+var error = 0,
+  goodIt = 0,
+  frontier = 1;
+for (let i = 0; i < 10000; i++) {
+  error += perc.train(array2dTo1d(generateTriangle(20, 20)), [1, 0, 0]);
+  error += perc.train(array2dTo1d(generateRect(20, 20)), [0, 1, 0]);
+  error += perc.train(array2dTo1d(generateLine(20, 20)), [0, 0, 1]);
+  if (error < frontier) {
+    goodIt++;
+    if (goodIt == 15) {
+    	perc.learnRate /= 1.5;
+      frontier /= 1.2;
+  		console.log(error);
+      console.log(i);
+    }
+  } else {
+    goodIt = 0;
+  }
+  error = 0;
+}
+
+function getMaxIndex(arr) {
+  var max = 0,
+    index = 0;
+  arr.forEach((item, i) => {
+    if (item > max) {
+      max = item;
+      index = i;
+    }
+  });
+  return index;
+}
+
+function present(pattern) {
+  var res = perc.exec(pattern);
+  switch (getMaxIndex(res)) {
+    case 0:
+      return 'triangle';
+    case 1:
+      return 'rectangle';
+    case 2:
+      return 'line';
+  }
+}
+
+var drawArr;
+var clearDrawArr = function() {
+  drawArr = [];
+  for (let i = 0; i < 20; i++) {
+    drawArr.push([]);
+    for (let j = 0; j < 20; j++) {
+      drawArr[i][j] = 0;
+    }
+  }
+}
+clearDrawArr();
+var displayDrawArr = function() {
+  var str = '';
+  for (let i = 0; i < 20; i++) {
+    for (let j = 0; j < 20; j++) {
+      str += drawArr[i][j];
+    }
+    str += '\n';
+  }
+  console.log(str);
+}
+
+
+document.addEventListener("DOMContentLoaded", function(event) {
+  var canvas = document.getElementById("myCanvas");
+  var ctx = canvas.getContext("2d");
+  var outpuElem = document.getElementById('lastValue');
+
+  outpuElem.textContent = present(array2dTo1d(generateTriangle(20, 20)));
+  outpuElem.textContent = present(array2dTo1d(generateLine(20, 20)));
+  outpuElem.textContent = present(array2dTo1d(generateRect(20, 20)));
+
+  document.getElementById('display').addEventListener('click', function() {
+    displayDrawArr();
+  }, false);
+
+  document.getElementById('clear').addEventListener('click', function() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    clearDrawArr();
+  }, false);
+
+  document.getElementById('runNN').addEventListener('click', function() {
+    outpuElem.textContent = present(array2dTo1d(drawArr));
+  }, false);
+
+  document.getElementById('runTr').addEventListener('click', function() {
+    outpuElem.textContent = present(array2dTo1d(generateTriangle(20, 20, 'debug')));
+  }, false);
+
+  document.getElementById('runRec').addEventListener('click', function() {
+    outpuElem.textContent = present(array2dTo1d(generateRect(20, 20, 'debug')));
+  }, false);
+
+  document.getElementById('runLine').addEventListener('click', function() {
+    outpuElem.textContent = present(array2dTo1d(generateLine(20, 20, 'debug')));
+  }, false);
+
+  function getMousePos(canvas, evt) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top
+    };
+  }
+
+  canvas.addEventListener('mousemove', function(evt) {
+    var mousePos = getMousePos(canvas, evt);
+    if (evt.buttons == 1) {
+      ctx.fillRect(mousePos.x, mousePos.y, 1, 1);
+
+      drawArr[Math.round(mousePos.x / canvas.width * 20)][Math.round(mousePos.y / canvas.height * 20)] = 1;
+    }
+  }, false);
+}, false);
+
+</script>
+</body>
+</html>
